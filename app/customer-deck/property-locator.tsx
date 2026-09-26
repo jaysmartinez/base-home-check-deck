@@ -101,7 +101,7 @@ export default function PropertyLocator({ initial, onDone }: {initial?:PropertyC
     else if(phase==='front') changePhase('meter');
     else if(phase==='meter') onDone(context);
   };
-  return <section className="pl-flow">
+  return <section className={`pl-flow pl-phase-${phase}`}>
     <div className="sc-content">
       {phase !== 'search' && <div className="sc-step">{phase==='house'?'1 of 3 · Confirm your house':phase==='front'?'2 of 3 · Mark the front':'3 of 3 · Mark the meter'}</div>}
       <h1 ref={heading} tabIndex={-1}>{phase==='search'?'Find your home':phase==='house'?'Is this your house?':phase==='front'?'Where is the front?':'Where is your meter?'}</h1>

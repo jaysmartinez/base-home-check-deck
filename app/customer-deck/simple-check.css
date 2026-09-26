@@ -16,3 +16,32 @@
 .pl-reference>img{width:240%;height:100%;left:-87%;top:0;object-fit:cover}
 .pl-pin{width:44px;height:44px}
 .pl-pin>span{top:44px}
+
+/* Fit image-led steps to the visible phone height. The image/map absorbs any
+   extra room and shrinks first on short screens, while controls stay visible. */
+@media(max-width:520px){
+  .sc-root{height:100dvh;min-height:0;overflow:hidden}
+  .sc-shell{height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .sc-actions{position:static;flex:0 0 auto;padding-top:10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
+
+  .pl-flow{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .pl-flow>.sc-content{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .pl-map-wrap{flex:1;min-height:150px;margin-top:10px}
+  .pl-google-map,.pl-reference,.pl-map-preview .pl-reference{height:100%}
+  .pl-map-tools{margin:8px 0}
+  .pl-keyboard{margin-top:8px}
+  .pl-keyboard summary{min-height:40px}
+  .sc-root .pl-selection{margin-top:8px}
+
+  .sc-stage-photo>.sc-content,
+  .sc-stage-confirm>.sc-content{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .sc-stage-photo .sc-step,.sc-stage-confirm .sc-step{margin-bottom:6px}
+  .sc-stage-photo h1,.sc-stage-confirm h1{font-size:clamp(26px,8vw,34px);margin-bottom:8px}
+  .sc-stage-photo>.sc-content>p,.sc-stage-confirm>.sc-content>p{font-size:clamp(17px,5vw,20px);line-height:1.3;margin-bottom:8px}
+  .sc-stage-photo .sc-example:not(.sc-small),
+  .sc-stage-confirm .sc-example:not(.sc-small),
+  .sc-stage-confirm .sc-upload{flex:1;min-height:120px;height:auto;max-height:none;aspect-ratio:auto;margin-top:0}
+  .sc-stage-photo .sc-angle{padding-top:8px;font-size:clamp(16px,4.8vw,19px);line-height:1.25}
+  .sc-stage-photo .sc-text-button,.sc-stage-confirm .sc-option{min-height:38px;padding:6px 0;margin-top:4px}
+  .sc-stage-confirm .sc-muted{margin-top:6px}
+}

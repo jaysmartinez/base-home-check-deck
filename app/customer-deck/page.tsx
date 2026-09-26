@@ -78,7 +78,7 @@ export default function CustomerDeck() {
     else if (stage === 'result') go('review');
   };
   return <main className="sc-root">
-    <div className="sc-shell">
+    <div className={`sc-shell sc-stage-${stage}`}>
       {stage === 'address' ? <PropertyLocator initial={property} onDone={value => { setProperty(value); setAddress(value.address); go('welcome'); }} /> : <>
       <section className="sc-content">
         <div className="sc-step">{['photo','confirm'].includes(stage) ? `Photo ${index + 1} of 7` : ['address','location'].includes(stage) ? '1 · Find your home' : ['welcome','safety'].includes(stage) ? '2 · Get ready' : stage === 'review' ? '4 · Review photos' : 'Demo result'}</div>
