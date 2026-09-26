@@ -16,7 +16,7 @@ type Marker = { setMap(m:MapObject|null):void; setPosition(p:Coordinate):void };
 type Maps = {
   Map: new (node:HTMLElement, options:Record<string,unknown>) => MapObject;
   Marker: new (options:Record<string,unknown>) => Marker;
-  Geocoder: new () => { geocode(options:{address:string}): Promise<{results:Array<{formatted_address:string;place_id:string;types:string[];partial_match?:boolean;geometry:{location:LatLng}}>}> };
+  Geocoder: new () => { geocode(options:{address:string}|{location:Coordinate}): Promise<{results:Array<{formatted_address:string;place_id:string;types:string[];partial_match?:boolean;geometry:{location:LatLng}}>}> };
 };
 declare global { interface Window { google?: {maps:Maps}; __baseMapsReady?:()=>void; gm_authFailure?:()=>void } }
 let mapsLoading: Promise<Maps> | null = null;
@@ -43,18 +43,20 @@ export default function PropertyLocator({ initial, onDone }: {initial?:PropertyC
   const [context,setContext] = useState<PropertyContext>(initial || {address:'',source:'example',frontUncertain:false,meterUncertain:false,propertyConfirmed:false});
   const [active,setActive] = useState(false);
   const [busy,setBusy] = useState(false);
+  const [locating,setLocating] = useState(false);
   const [error,setError] = useState('');
   const [mapType,setMapType] = useState('satellite');
   const mapNode = useRef<HTMLDivElement>(null);
   const map = useRef<MapObject|null>(null);
   const markers = useRef<Record<string,Marker>>({});
+  const mapFrame = useRef<number|null>(null);
   const currentPhase = useRef(phase);
   const clickListener = useRef<{remove():void}|null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const changePhase = (next:Phase) => { setError(''); setPhase(next); };
   useEffect(() => { currentPhase.current = phase; }, [phase]);
   useEffect(() => { heading.current?.focus({preventScroll:true}); window.scrollTo(0,0); },[phase]);
-  useEffect(() => () => { clickListener.current?.remove(); Object.values(markers.current).forEach(m=>m.setMap(null)); },[]);
+  useEffect(() => () => { if(mapFrame.current) cancelAnimationFrame(mapFrame.current); clickListener.current?.remove(); Object.values(markers.current).forEach(m=>m.setMap(null)); },[]);
   const mark = (kind:string, point:Coordinate, maps:Maps) => {
     if(markers.current[kind]) markers.current[kind].setPosition(point);
     else markers.current[kind] = new maps.Marker({map:map.current,position:point,label:{text:kind === 'house'?'H':kind === 'front'?'F':'M',color:'white',fontWeight:'bold'},title:kind === 'front' ? 'Front of house' : kind === 'meter' ? 'Meter location' : 'House location'});
@@ -63,6 +65,19 @@ export default function PropertyLocator({ initial, onDone }: {initial?:PropertyC
     if(kind === 'search') return;
     mark(kind, point, maps);
     setContext(c=>({...c,[kind]:point,...(kind==='front'?{frontUncertain:false}:kind==='meter'?{meterUncertain:false}:{})}));
+  };
+  const showProperty = (maps:Maps, point:Coordinate, address:string, placeId?:string) => {
+    setContext({address,placeId,source:'google',house:point,frontUncertain:false,meterUncertain:false,propertyConfirmed:false});
+    setActive(true); changePhase('house');
+    mapFrame.current = requestAnimationFrame(() => {
+      if(!mapNode.current) return;
+      Object.values(markers.current).forEach(m=>m.setMap(null)); markers.current={};
+      if(!map.current) {
+        map.current = new maps.Map(mapNode.current,{center:point,zoom:20,mapTypeId:'satellite',tilt:0,heading:0,disableDefaultUI:true,zoomControl:true,gestureHandling:'cooperative',clickableIcons:false});
+        clickListener.current = map.current.addListener('click',e=>{if(e.latLng) putPoint(currentPhase.current,e.latLng.toJSON(),maps);});
+      } else { map.current.setCenter(point); map.current.setZoom(20); }
+      mark('house',point,maps);
+    });
   };
   const search = async () => {
     if(!query.trim()) { setError('Enter your street address, city and ZIP code.'); return; }
@@ -73,19 +88,28 @@ export default function PropertyLocator({ initial, onDone }: {initial?:PropertyC
       const {results} = await new maps.Geocoder().geocode({address:query.trim()});
       const result = results[0];
       if(!result || result.partial_match || !result.types.some(t=>['street_address','premise','subpremise'].includes(t))) { setError('We couldn’t find an exact home. Add the house number, city and ZIP code, then try again.'); return; }
-      if(!mapNode.current) return;
-      mapNode.current.style.display = 'block';
       const point = result.geometry.location.toJSON();
-      Object.values(markers.current).forEach(m=>m.setMap(null)); markers.current={};
-      if(!map.current) {
-        map.current = new maps.Map(mapNode.current,{center:point,zoom:20,mapTypeId:'satellite',tilt:0,heading:0,disableDefaultUI:true,zoomControl:true,gestureHandling:'cooperative',clickableIcons:false});
-        clickListener.current = map.current.addListener('click',e=>{if(e.latLng) putPoint(currentPhase.current,e.latLng.toJSON(),maps);});
-      } else { map.current.setCenter(point); map.current.setZoom(20); }
-      mark('house',point,maps);
-      setContext({address:result.formatted_address,placeId:result.place_id,source:'google',house:point,frontUncertain:false,meterUncertain:false,propertyConfirmed:false});
-      setActive(true); changePhase('house');
+      showProperty(maps,point,result.formatted_address,result.place_id);
     } catch { setError('We couldn’t load your home. Check the Maps connection and try again.'); }
     finally { setBusy(false); }
+  };
+  const useLocation = () => {
+    if(!navigator.geolocation) { setError('Location sharing is not available on this device. Enter your address instead.'); return; }
+    if(!apiKey) { setError('Location sharing needs the live map connection. Enter your address to try the demo.'); return; }
+    setLocating(true); setError('');
+    navigator.geolocation.getCurrentPosition(async position => {
+      try {
+        const point = {lat:position.coords.latitude,lng:position.coords.longitude};
+        const maps = await loadMaps(apiKey);
+        const {results} = await new maps.Geocoder().geocode({location:point});
+        const result = results[0];
+        showProperty(maps,point,result?.formatted_address || 'Your current location',result?.place_id);
+      } catch { setError('We couldn’t open the map. Enter your address instead.'); }
+      finally { setLocating(false); }
+    }, error => {
+      setLocating(false);
+      setError(error.code === 1 ? 'Location was not shared. Enter your address instead.' : 'We couldn’t find your location. Enter your address instead.');
+    }, {enableHighAccuracy:true,timeout:12000,maximumAge:300000});
   };
   const example = () => {
     setContext({address:'Example property from your reference',source:'example',frontUncertain:false,meterUncertain:false,propertyConfirmed:false});
@@ -106,9 +130,9 @@ export default function PropertyLocator({ initial, onDone }: {initial?:PropertyC
       {phase !== 'search' && <div className="sc-step">{phase==='house'?'1 of 3 · Confirm your house':phase==='front'?'2 of 3 · Mark the front':'3 of 3 · Mark the meter'}</div>}
       <h1 ref={heading} tabIndex={-1}>{phase==='search'?'Find your home':phase==='house'?'Is this your house?':phase==='front'?'Where is the front?':'Where is your meter?'}</h1>
       {phase !== 'search' && <p>{phase==='house'?'Confirm that this is your house':phase==='front'?'Tap the front entrance on your house.':'Tap the wall where your meter is located.'}</p>}
-      {phase==='search' && <form onSubmit={e=>{e.preventDefault();void search();}}><label htmlFor="map-address">Home address</label><input id="map-address" autoComplete="street-address" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Street, city and ZIP code"/><button className="sc-primary pl-search" disabled={busy}>{busy?'Finding your home…':'Search map'}</button><p className="sc-muted">{apiKey?'Your address is sent to Google to find your home.':'Live Google Maps needs to be connected.'}</p></form>}
+      {phase==='search' && <form className="pl-start" onSubmit={e=>{e.preventDefault();void search();}}><label htmlFor="map-address">Home address</label><input id="map-address" autoComplete="street-address" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Street, city and ZIP code"/><div className="pl-or" aria-hidden="true"><span>or</span></div><button type="button" className="sc-option pl-location" disabled={busy||locating} onClick={useLocation}>{locating?'Finding your location…':'Use my current location'}</button><p className="sc-muted">Your browser will ask permission to share your location.</p></form>}
       {active && phase!=='search' && context.source==='google' && <div className="pl-address">{context.address}</div>}
-      <div className={`pl-map-wrap ${phase==='search'?'pl-map-preview':''}`}>
+      <div className={`pl-map-wrap ${phase==='search'?'pl-map-hidden':''}`} aria-hidden={phase==='search'}>
         <div ref={mapNode} className="pl-google-map" style={{display:active && context.source==='google'?'block':'none'}} aria-label="Google property map" />
         {(!active || context.source==='example') && <div className={`pl-reference ${phase==='front'||phase==='meter'?'pl-selectable':''}`} role="group" aria-label="Reference map example, not a searched property" onClick={e=>{const rect=e.currentTarget.getBoundingClientRect();selectExample({x:(e.clientX-rect.left)/rect.width,y:(e.clientY-rect.top)/rect.height});}}>
           <img src="/property-map-reference.png" alt="Reference map showing neighboring house footprints" draggable={false}/>
@@ -126,7 +150,7 @@ export default function PropertyLocator({ initial, onDone }: {initial?:PropertyC
       </>}
       {error && <p className="sc-error" role="alert">{error}</p>}
     </div>
-    {phase==='search' && <footer className="sc-actions"><button className="sc-primary" disabled={busy} onClick={apiKey ? () => { void search(); } : example}>Next</button></footer>}
+    {phase==='search' && <footer className="sc-actions"><button className="sc-primary" disabled={busy||locating} onClick={apiKey ? () => { void search(); } : example}>{busy?'Finding your home…':'Next'}</button></footer>}
     {phase!=='search' && <footer className="sc-actions"><button className="sc-primary" disabled={!ready} onClick={advance}>{phase==='house'?'Confirmed':phase==='front'?'Confirm front':'Confirm meter location'}</button><button className="sc-back" onClick={()=>changePhase(phase==='house'?'search':phase==='front'?'house':'front')}>Back</button></footer>}
   </section>;
 }
