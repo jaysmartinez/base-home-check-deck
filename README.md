@@ -8,7 +8,7 @@ Use Node 22 or newer. Run `npm ci` and `npm run dev`. Build with `npm run build`
 
 ## Demo boundaries
 
-The map example uses a supplied screenshot. Live Google Maps requires `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` with Maps JavaScript API and Geocoding API enabled, billing configured, and HTTP referrer restrictions. Configure before building. No key is included.
+The map example uses a supplied screenshot. Live Google Maps requires `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` with Maps JavaScript API, Geocoding API, and Places API (New) enabled, billing configured, and HTTP referrer restrictions. Configure before building. No key is included. Address suggestions use Places.
 
 Photos stay in the current tab. Refresh clears the session. There is no upload backend or AI qualification integration. Example photos and outcome screens are for demonstration only.
 
