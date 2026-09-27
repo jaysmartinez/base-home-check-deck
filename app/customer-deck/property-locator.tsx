@@ -74,7 +74,8 @@ export default function PropertyLocator({ initial, onDone }: {initial?:PropertyC
   const mapFrame = useRef<number|null>(null);
   const currentPhase = useRef(phase);
   const clickListener = useRef<{remove():void}|null>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
+  const heading = useRef<HTMLElement | null>(null);
+  const setHeading = (node: HTMLElement | null) => { heading.current = node; };
   const addressInput = useRef<HTMLInputElement>(null);
   const [popBox,setPopBox] = useState<{top:number;left:number;width:number;maxHeight:number}|null>(null);
   const suggestTimer = useRef<number | null>(null);
@@ -238,12 +239,10 @@ export default function PropertyLocator({ initial, onDone }: {initial?:PropertyC
   return <section className={`pl-flow pl-phase-${phase}`}>
     <div className="sc-content">
       {phase === 'house' && <button type="button" className="pl-top-back" aria-label="Back" onClick={() => changePhase('search')}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H6M11 6.5 5.5 12 11 17.5" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}
-      {phase === 'house' && <h1 ref={heading} tabIndex={-1}>Does this look familiar?</h1>}
-      {(phase === 'front' || phase === 'meter') && <div className="sc-step">{phase==='front'?'2 of 3 · Mark the front':'3 of 3 · Mark the meter'}</div>}
-      {(phase === 'front' || phase === 'meter') && <h1 ref={heading} tabIndex={-1}>{phase==='front'?'Where is the front?':'Where is your meter?'}</h1>}
-      {(phase === 'front' || phase === 'meter') && <p>{phase==='front'?'Tap the front entrance on your house.':'Tap the wall where your meter is located.'}</p>}
+      {(phase === 'front' || phase === 'meter') && <div className="pl-front-bar"><button type="button" className="pl-top-back" aria-label="Back" onClick={() => changePhase(phase === 'front' ? 'house' : 'front')}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H6M11 6.5 5.5 12 11 17.5" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"/></svg></button><p ref={setHeading} tabIndex={-1}>{phase === 'front' ? 'Tap the front entrance on your house.' : 'Tap the wall where your meter is located.'}</p></div>}
+      {phase === 'house' && <h1 ref={setHeading} tabIndex={-1}>Does this look familiar?</h1>}
       {phase==='search' && <form className="pl-start" onSubmit={e=>{e.preventDefault();void search();}}><label htmlFor="map-address">address</label><div className="pl-address-field"><input ref={addressInput} id="map-address" role="combobox" aria-autocomplete="list" aria-expanded={suggestOpen} aria-controls="map-address-list" aria-activedescendant={suggestOpen && activeSuggestion >= 0 ? `map-address-option-${activeSuggestion}` : undefined} autoComplete="off" value={query} onChange={e=>onQueryChange(e.target.value)} onKeyDown={onAddressKeyDown} placeholder="Street, city and ZIP code"/>{suggestOpen && popBox && <div className="pl-suggest-pop" style={{top:popBox.top,left:popBox.left,width:popBox.width}}><ul id="map-address-list" className="pl-suggestions" role="listbox" aria-label="Address suggestions" style={{maxHeight:popBox.maxHeight}}>{suggestions.map((item, index) => <li key={item.placeId} id={`map-address-option-${index}`} role="option" aria-selected={index === activeSuggestion}><button type="button" onMouseDown={event=>{event.preventDefault();void chooseSuggestion(item);}} onMouseEnter={()=>setActiveSuggestion(index)}><strong>{item.main}</strong>{item.secondary && <span>{item.secondary}</span>}</button></li>)}</ul><p className="pl-powered"><img src="https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-white3.png" alt="Powered by Google"/></p></div>}</div><div className="pl-or" aria-hidden="true"><span>or</span></div><button type="button" className="sc-option pl-location" disabled={busy||locating} onClick={useLocation}>{locating?'Finding your location…':'Use my current location'}</button></form>}
-      {active && phase!=='search' && context.source==='google' && <div className="pl-address">{context.address}</div>}
+      {active && phase==='house' && context.source==='google' && <div className="pl-address">{context.address}</div>}
       <div className={`pl-map-wrap ${phase==='search'?'pl-map-hidden':''}`} aria-hidden={phase==='search'}>
         <div ref={mapNode} className="pl-google-map" style={{display:active && context.source==='google'?'block':'none'}} aria-label="Google property map" />
         {(!active || context.source==='example') && <div className={`pl-reference ${phase==='front'||phase==='meter'?'pl-selectable':''}`} role="group" aria-label="Reference map example, not a searched property" onClick={e=>{const rect=e.currentTarget.getBoundingClientRect();selectExample({x:(e.clientX-rect.left)/rect.width,y:(e.clientY-rect.top)/rect.height});}}>
@@ -255,11 +254,10 @@ export default function PropertyLocator({ initial, onDone }: {initial?:PropertyC
       </div>
       {(phase==='front'||phase==='meter') && <>
         {context.source==='example' && <details className="pl-keyboard"><summary>Choose without tapping the map</summary><div className="pl-position-buttons">{[{label:'Top',x:.55,y:.29},{label:'Right',x:.76,y:.55},{label:'Bottom',x:.47,y:.74},{label:'Left',x:.3,y:.5}].map(p=><button key={p.label} onClick={()=>selectExample(p)}>{p.label}</button>)}</div></details>}
-        {context.source==='google' && <button className="sc-option" onClick={()=>{const center=map.current?.getCenter();if(center&&window.google) putPoint(phase,center.toJSON(),window.google.maps);}}>Use the center of the map</button>}
-        <p className="pl-selection" aria-live="polite">{phase==='front'?(context.frontUncertain?'Front marked as unsure':context.front||context.exampleFront?'Front marked · tap again to move it':''):(context.meterUncertain?'Meter marked as unsure':context.meter||context.exampleMeter?'Meter marked · tap again to move it':'Tap once to place the meter marker')}</p>
+        {((phase==='front' && context.frontUncertain) || (phase==='meter' && context.meterUncertain)) && <p className="pl-selection" aria-live="polite">{phase==='front'?'Front marked as unsure':'Meter marked as unsure'}</p>}
       </>}
       {error && <p className="sc-error" role="alert">{error}</p>}
     </div>
-    {phase!=='search' && <footer className="sc-actions"><button className="sc-primary" disabled={!ready} onClick={advance}>{phase==='house'?'Confirm':phase==='front'?'Confirm front':'Confirm meter location'}</button>{phase!=='house' && <button className="sc-back" onClick={()=>changePhase(phase==='front'?'house':'front')}>Back</button>}</footer>}
+    {phase!=='search' && <footer className="sc-actions"><button className="sc-primary" disabled={!ready} onClick={advance}>Confirm</button></footer>}
   </section>;
 }
