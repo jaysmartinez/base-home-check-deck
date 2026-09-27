@@ -45,7 +45,7 @@ function useDialog(open: boolean, panel: RefObject<HTMLElement | null>, initialF
 
 function Example({ index, small = false }: { index: number; small?: boolean }) {
   return <div role="img" aria-label={`Example: ${shots[index].title}. ${shots[index].angle}`} className={`sc-example sc-example-${shots[index].image} ${small ? 'sc-small' : ''}`}>
-    {!small && <><span className="sc-example-label">Example photo</span><div className={`sc-guide sc-guide-${index}`} /></>}
+    {!small && <span className="sc-example-label">Example photo</span>}
   </div>;
 }
 
@@ -126,7 +126,7 @@ export default function CustomerDeck() {
   useEffect(() => () => urls.current.forEach(url => URL.revokeObjectURL(url)), []);
   const go = (next: Stage) => { setError(''); setStage(next); };
   const shot = shots[index];
-  const title = stage === 'address' ? 'Where is your home?' : stage === 'location' ? 'Where is your meter?' : stage === 'welcome' ? 'Let’s check your home' : stage === 'photo' ? shot.title : stage === 'confirm' ? 'Use this photo?' : stage === 'review' ? 'Review' : sampleResult === 'qualified' ? 'Your home may be a fit' : sampleResult === 'fail' ? 'This setup may not qualify' : 'Your photos need a closer look';
+  const title = stage === 'address' ? 'Where is your home?' : stage === 'location' ? 'Where is your meter?' : stage === 'welcome' ? 'Let’s check your home' : stage === 'photo' ? shot.title : stage === 'confirm' ? 'Use this photo?' : stage === 'review' ? 'Review' : sampleResult === 'qualified' ? 'Your home may be a fit' : sampleResult === 'fail' ? 'This setup may not qualify' : 'Thanks! You’re all set.';
   const save = (photo: Photo) => {
     setPhotos(current => ({ ...current, [index]: photo })); setPending(null);
     if (editing) { setEditing(false); go('review'); }
@@ -156,6 +156,7 @@ export default function CustomerDeck() {
     else if (stage === 'find') { if (find === 'breaker') { setIndex(breakerStart - 1); go('photo'); } else { setSafetyOpen(true); go('welcome'); } }
     else if (stage === 'confirm') go('photo');
     else if (stage === 'review') { setIndex(6); go('photo'); }
+    else if (stage === 'result') go('review');
     else if (stage === 'photo') { if (editing) { setEditing(false); go('review'); } else if (index === breakerStart) { setFind('breaker'); go('find'); } else if (index > 0) setIndex(index - 1); else { setFind('meter'); go('find'); } }
   };
   const primary = stage === 'address' ? 'Find my home' : stage === 'location' ? 'Confirm location' : stage === 'welcome' ? 'Start' : stage === 'find' ? find === 'meter' ? 'Continue' : 'I found it' : stage === 'photo' ? busy ? 'Opening photo…' : 'Take photo' : stage === 'confirm' ? 'Use this photo' : stage === 'review' ? 'Submit' : 'Review my photos';
@@ -218,9 +219,9 @@ export default function CustomerDeck() {
       {stage === 'find' ? <FindEquipment subject={find} headingRef={heading} onBack={back} /> : <section className="sc-content">
         {stage === 'welcome' && <TopBack onClick={back} />}
         {stage !== 'welcome' && stage !== 'result' && <div className="sc-topbar"><TopBack onClick={back} />{!['photo', 'confirm', 'review'].includes(stage) && <div className="sc-step">{step}</div>}{stage === 'photo' && <button type="button" className="sc-example-btn" aria-label="Try with example photo" onClick={() => save({ url: '', demo: true })}>E</button>}</div>}
-        {stage === 'result' && <div className="sc-step">{step}</div>}
-        <h1 ref={heading} tabIndex={-1}>{title}</h1>
-        {stage === 'welcome' && <><div className="sc-welcome-pair"><img src="/find-meter.webp" alt="Person photographing an electric meter on the outside wall of a house" /><img src="/find-breaker.webp" alt="Person photographing an open breaker panel in a garage" /></div><div className="sc-facts"><span>ETA About 5 minutes</span></div></>}
+        {stage === 'result' && sampleResult !== 'review' && <div className="sc-step">{step}</div>}
+        {!(stage === 'result' && sampleResult === 'review') && <h1 ref={heading} tabIndex={-1}>{title}</h1>}
+        {stage === 'welcome' && <><div className="sc-welcome-pair"><img src="/find-meter.webp" alt="Person photographing an electric meter on the outside wall of a house" /><img src="/find-breaker.webp" alt="Person photographing an open breaker panel in a garage" /></div><div className="sc-facts"><span>This should take only a few minutes</span></div></>}
         {stage === 'photo' && <><p>{shot.instruction}</p><Example index={index} /><div className="sc-angle">{shot.angle}</div></>}
         {stage === 'confirm' && <><p>Can you see {index === 6 ? 'the main switch number' : 'the equipment and area'} clearly?</p>{pending?.demo ? <Example index={index} /> : <img className="sc-upload" src={pending?.url} alt={`Your photo: ${shot.title}`} />}<p className="sc-muted">{pending?.demo ? 'Example photo for this demo.' : 'Photo opened. Automated quality checks are not connected.'}</p><button className="sc-option" onClick={() => go('photo')}>Retake photo</button></>}
         {stage === 'review' && <div className="sc-review">
@@ -232,10 +233,23 @@ export default function CustomerDeck() {
           <p className="sc-review-caption" aria-live="polite"><strong>{shot.title}</strong><span>{index + 1} of {shots.length}</span><span>{!photos[index] ? 'Photo missing' : photos[index].demo ? 'Example photo' : 'Photo added'}</span></p>
           <button type="button" className="sc-option" onClick={() => { setEditing(true); go('photo'); }} aria-label={`Change ${shot.title}`}>Edit</button>
         </div>}
-        {stage === 'result' && <><div className="sc-result-icon" aria-hidden="true">{sampleResult === 'qualified' ? '✓' : sampleResult === 'fail' ? '×' : '?'}</div><p>{sampleResult === 'qualified' ? 'Your next step would be installation planning.' : sampleResult === 'fail' ? 'Example reason: the available wall space does not meet the installation requirement.' : 'Some details need checking before a decision.'}</p><div className="sc-result-message"><strong>{sampleResult === 'qualified' ? 'Qualified lead — example' : sampleResult === 'fail' ? 'Does not qualify — example' : 'Manual review — demo'}</strong><p>No live assessment was performed. Your photos have not been sent.</p></div><details className="sc-team"><summary>Demo: team assessment</summary><p>Photo coverage: {shots.filter((_, i) => photos[i]?.url || photos[i]?.demo).length} of 7. This is completeness, not an eligibility score.</p><p>{sampleResult === 'review' ? 'No decision: analysis and approved Base rules are not connected.' : 'Illustrative result only. No score or decision was calculated from your photos.'}</p><p>Property context: {property?.propertyConfirmed ? 'confirmed' : 'unconfirmed'}; front {property?.frontUncertain ? 'unsure' : 'marked'}; meter {property?.meterUncertain ? 'unsure' : 'marked'}.</p><div className="sc-outcome-options">{(['qualified', 'fail', 'review'] as const).map(outcome => <button className="sc-option" key={outcome} aria-pressed={sampleResult === outcome} onClick={() => setSampleResult(outcome)}>{outcome === 'qualified' ? 'Qualified example' : outcome === 'fail' ? 'Fail example' : 'Human review example'}</button>)}</div></details></>}
+        {stage === 'result' && sampleResult === 'review' && <div className="sc-result-final">
+          <TopBack onClick={back} />
+          <img className="sc-result-logo" src="/base-logo.svg" alt="Base Power" />
+          <div className="sc-result-success" aria-hidden="true"><svg viewBox="0 0 72 72"><path d="m19 37 12 12 23-30" /></svg></div>
+          <h1 ref={heading} tabIndex={-1}>{title}</h1>
+          <p className="sc-result-received">We received your photos.</p>
+          <div className="sc-result-next">
+            <strong>What happens next</strong>
+            <div><span>1</span><p>Our team reviews your photos.</p></div>
+            <div><span>2</span><p>We contact you with next steps.</p></div>
+          </div>
+          <p className="sc-result-done"><span aria-hidden="true">✓</span>Nothing else is needed right now.</p>
+        </div>}
+        {stage === 'result' && sampleResult !== 'review' && <><div className="sc-result-icon" aria-hidden="true">{sampleResult === 'qualified' ? '✓' : '×'}</div><p>{sampleResult === 'qualified' ? 'Your next step would be installation planning.' : 'Example reason: the available wall space does not meet the installation requirement.'}</p><div className="sc-result-message"><strong>{sampleResult === 'qualified' ? 'Qualified lead — example' : 'Does not qualify — example'}</strong><p>No live assessment was performed. Your photos have not been sent.</p></div><details className="sc-team"><summary>Demo: team assessment</summary><p>Photo coverage: {shots.filter((_, i) => photos[i]?.url || photos[i]?.demo).length} of 7. This is completeness, not an eligibility score.</p><p>Illustrative result only. No score or decision was calculated from your photos.</p><p>Property context: {property?.propertyConfirmed ? 'confirmed' : 'unconfirmed'}; front {property?.frontUncertain ? 'unsure' : 'marked'}; meter {property?.meterUncertain ? 'unsure' : 'marked'}.</p><div className="sc-outcome-options">{(['qualified', 'fail', 'review'] as const).map(outcome => <button className="sc-option" key={outcome} aria-pressed={sampleResult === outcome} onClick={() => setSampleResult(outcome)}>{outcome === 'qualified' ? 'Qualified example' : outcome === 'fail' ? 'Fail example' : 'Human review example'}</button>)}</div></details></>}
         {error && <p className="sc-error" role="alert">{error}</p>}
       </section>}
-      <footer className="sc-actions"><button className="sc-primary" onClick={next} disabled={busy || (stage === 'location' && !side) || (stage === 'review' && !shots.every((_, i) => photos[i]?.url || photos[i]?.demo))}>{primary}</button></footer></>}
+      {!(stage === 'result' && sampleResult === 'review') && <footer className="sc-actions"><button className="sc-primary" onClick={next} disabled={busy || (stage === 'location' && !side) || (stage === 'review' && !shots.every((_, i) => photos[i]?.url || photos[i]?.demo))}>{primary}</button></footer>}</>}
     </div>
     {photoPickerOpen && <div className="sc-modal-backdrop" onClick={event => { if (event.target === event.currentTarget) closePhotoPicker(); }}>
       <div className="sc-photo-modal" role="dialog" aria-modal="true" aria-labelledby="photo-source-title" ref={photoPanel}>

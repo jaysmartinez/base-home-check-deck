@@ -14,7 +14,7 @@ const copy = {
   },
   breaker: {
     title: 'Find your breaker panel',
-    lead: 'Look in your garage or utility room.',
+    lead: 'It may be outside, in your garage, or in a utility room.',
     tip: 'Leave the inner cover in place.',
     image: '/find-breaker.webp',
     alt: 'Person photographing an open breaker panel in a garage',
